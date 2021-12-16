@@ -1,4 +1,4 @@
-# PoliticsinTurkey
+# Politics in Turkey
 
 This is my final project for my STAT 4380: Data Science class at Villanova University, and the aim here is to explore political ideologies and opinions supported in Turkey, and analyze the relation of politics to everyday life. After giving some background information on Turkey, Turkey's political chronology and most recent general election results are presented. Then, the influence of politics on opinions regarding controversial topics (like education reform, economical situation, abortion bans, alcohol bans, state of emergency) is explored, and by comparing Turkey to its neighbors and Europe overall, the political position of Turkey is determined.
 
