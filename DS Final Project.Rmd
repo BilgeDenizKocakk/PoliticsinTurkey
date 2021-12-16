@@ -1,0 +1,1040 @@
+---
+title: "Data Science Final Project"
+author: "Bilge Deniz Kocak"
+date: "11/18/2021"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE, 
+	warning = FALSE
+)
+library(tidyverse)
+library(lubridate)
+library(ggmap)
+library(ggrepel)
+library(ggcorrplot)
+library(ggstance)
+library(wordcloud)
+library(tidytext)
+library(slam)
+library(tm)
+library(janitor)
+library(rvest)
+library(nnet)
+library(MASS)
+library(dplyr)
+library(klaR)
+library(psych)
+```
+
+- Datasets: General Election Results:
+
+```{r general-election-results}
+# reading in the election results
+election_results <- "https://tr.wikipedia.org/wiki/T%C3%BCrkiye%27de_se%C3%A7imler" %>% 
+  read_html() %>% 
+  html_nodes("table")
+
+# the election results were parts of different tables, so I am reading them all in seperately
+election_results_Jun_2018 <- election_results %>%  .[[5]] %>% html_table() %>% dplyr::select(c(2, 5, 7)) %>% mutate(Sandalye = paste(Sandalye, " / 600", sep="")) %>% rename ("Sandalye Dağılımı" = "Sandalye") %>% mutate(Year = 2018, Month = 6)
+election_results_Nov_2015 <- election_results %>%  .[[6]] %>% html_table() %>% row_to_names(row_number = 1) %>% dplyr::select(c(1:3)) %>% head(4) %>% mutate(Year = 2015, Month = 11) %>% rename("Sandalye Dağılımı" = "Sandalye dağılımı")
+election_results_Jun_2015 <- election_results %>%  .[[6]] %>% html_table() %>% row_to_names(row_number = 1) %>% dplyr::select(c(6:8)) %>% head(4) %>% mutate(Year = 2015, Month = 6) %>% rename("Sandalye Dağılımı" = "Sandalye dağılımı")
+election_results_Jun_2011 <- election_results %>%  .[[7]] %>% html_table() %>% row_to_names(row_number = 1) %>% dplyr::select(c(1:3)) %>% head(4) %>% mutate(Year = 2011, Month = 6)
+election_results_Jul_2007 <- election_results %>%  .[[7]] %>% html_table() %>% row_to_names(row_number = 1) %>% dplyr::select(c(6:8)) %>% head(4) %>% mutate(Year = 2007, Month = 7)
+election_results_Nov_2002 <- election_results %>%  .[[8]] %>% html_table() %>% row_to_names(row_number = 1) %>% dplyr::select(c(1:3)) %>% head(3) %>% mutate(Year = 2002, Month = 11)
+election_results_Apr_1999 <- election_results %>%  .[[8]] %>% html_table() %>% row_to_names(row_number = 1) %>% dplyr::select(c(6:8)) %>% head(6) %>% mutate(Year = 1999, Month = 4)
+election_results_Dec_1995 <- election_results %>%  .[[9]] %>% html_table() %>% row_to_names(row_number = 1) %>% dplyr::select(c(1:3)) %>% head(5) %>% mutate(Year = 1995, Month = 12)
+election_results_Oct_1991 <- election_results %>%  .[[9]] %>% html_table() %>% row_to_names(row_number = 1) %>% dplyr::select(c(6:8)) %>% head(5) %>% mutate(Year = 1991, Month = 10)
+election_results_Oct_1987 <- election_results %>%  .[[10]] %>% html_table() %>% row_to_names(row_number = 1) %>% dplyr::select(c(1:3)) %>% head(4) %>% mutate(Year = 1987, Month = 10)
+election_results_Nov_1983 <- election_results %>%  .[[10]] %>% html_table() %>% row_to_names(row_number = 1) %>% dplyr::select(c(6:8)) %>% head(3) %>% mutate(Year = 1983, Month = 11)
+election_results_Jun_1977 <- election_results %>%  .[[11]] %>% html_table() %>% row_to_names(row_number = 1) %>% dplyr::select(c(1:3)) %>% head(7) %>% mutate(Year = 1977, Month = 6)
+election_results_Oct_1973 <- election_results %>%  .[[11]] %>% html_table() %>% row_to_names(row_number = 1) %>% dplyr::select(c(6:8)) %>% head(8) %>% mutate(Year = 1973, Month = 10)
+election_results_Oct_1969 <- election_results %>%  .[[12]] %>% html_table() %>% row_to_names(row_number = 1) %>% dplyr::select(c(1:3)) %>% head(9) %>% mutate(Year = 1969, Month = 10)
+election_results_Oct_1965 <- election_results %>%  .[[12]] %>% html_table() %>% row_to_names(row_number = 1) %>% dplyr::select(c(6:8)) %>% head(7) %>% mutate(Year = 1965, Month = 10)
+election_results_Oct_1961 <- election_results %>%  .[[13]] %>% html_table() %>% row_to_names(row_number = 1) %>% dplyr::select(c(1:3)) %>% head(4) %>% mutate(Year = 1961, Month = 10)
+election_results_Oct_1957 <- election_results %>%  .[[13]] %>% html_table() %>% row_to_names(row_number = 1) %>% dplyr::select(c(6:8)) %>% head(4) %>% mutate(Year = 1957, Month = 10)
+election_results_May_1954 <- election_results %>%  .[[14]] %>% html_table() %>% row_to_names(row_number = 1) %>% dplyr::select(c(1:3)) %>% head(4) %>% mutate(Year = 1954, Month = 5)
+election_results_May_1950 <- election_results %>%  .[[14]] %>% html_table() %>% row_to_names(row_number = 1) %>% dplyr::select(c(6:8)) %>% head(4) %>% mutate(Year = 1950, Month = 5)
+election_results_Jul_1946 <- election_results %>%  .[[14]] %>% html_table() %>% row_to_names(row_number = 1) %>% dplyr::select(c(11:13)) %>% head(3) %>% mutate(Year = 1946, Month = 7)
+
+# I am combining all those election results I got for different years as general_election_results, translating it to English, and using abbreviations for party names
+general_election_results <- do.call("rbind", 
+                                    list(election_results_Jun_2018, election_results_Nov_2015,
+                                         election_results_Jun_2015, election_results_Jun_2011,
+                                         election_results_Jul_2007, election_results_Nov_2002,
+                                         election_results_Apr_1999, election_results_Dec_1995,
+                                         election_results_Oct_1991, election_results_Oct_1987,
+                                         election_results_Nov_1983, election_results_Jun_1977,
+                                         election_results_Oct_1973, election_results_Oct_1969,
+                                         election_results_Oct_1965, election_results_Oct_1961,
+                                         election_results_Oct_1957, election_results_May_1954,
+                                         election_results_May_1950, election_results_Jul_1946)) %>%
+  rename("Seats" = "Sandalye Dağılımı") %>%
+  separate(Seats, into = c("MP", "TotalMP"), sep = "/") %>%
+  mutate(Parti = case_when(
+         Parti == "Adalet ve Kalkınma Partisi" ~ "AKP",
+         Parti == "Cumhuriyet Halk Partisi" ~ "CHP",
+         Parti == "Halkların Demokratik Partisi" ~ "HDP",
+         Parti == "Milliyetçi Hareket Partisi" ~ "MHP",
+         Parti == "İYİ Parti" ~ "İYİ",
+         Parti == "Saadet Partisi" ~ "SP",
+         Parti == "Hür Dava Partisi" ~ "HÜDAPAR",
+         Parti == "Vatan Partisi" ~ "VATAN",
+         Parti == "Bağımsızlar" ~ "Bağımsız",
+         Parti == "Demokratik Sol Parti" ~ "DSP",
+         Parti == "Fazilet Partisi" ~ "FP",
+         Parti == "Anavatan Partisi" ~ "ANAP",
+         Parti == "Doğru Yol Partisi" ~ "DYP",
+         Parti == "Refah Partisi" ~ "RP",
+         Parti == "Türkiye İşçi Partisi" ~ "TİP", 
+         Parti == "Türkiye Birlik Partisi"  ~ "TBP", 
+         Parti == "Birlik Partisi" ~ "TBP",
+         Parti == "Milli Selamet Partisi" ~ "MSP",
+         Parti == "Cumhuriyetçi Güven Partisi" ~ "CGP",
+         Parti == "Sosyaldemokrat Halkçı Parti" ~ "SHP",
+         Parti == "Milliyetçi Demokrasi Partisi" ~ "MDP",
+         TRUE ~ Parti)) %>%
+  mutate_all(.funs = funs(str_trim)) %>%
+  mutate(Proportion = as.numeric(MP)/as.numeric(TotalMP)) # calculating the proportion of MPs the parties got as a result of the election
+```
+
+- Datasets: Survey Data:
+
+```{r survey-data}
+#reading in the data gotten from different files that were a part of the project on Kaggle
+data1 <- read_csv("data.csv")
+data2 <- read_csv("datav2.csv")
+data3 <- read_csv("yonelimfinal.csv")
+
+# combining the datasets as survey_data and translating it to English
+survey_data <- data1 %>% 
+  rbind(data2) %>% 
+  rbind(data3) %>% 
+  unique() %>% 
+  rename("gender" = "Cinsiyet",
+         "age" = "Yas",
+         "region" = "Bolge",
+         "education" = "Egitim",
+         "economicalSituation" = "soru1",
+         "educationalReform" = "soru2",
+         "againstPrivatization" = "soru3",
+         "execution" = "soru4",
+         "objectiveMedia" = "soru5",
+         "alcoholBan" = "soru6", 
+         "secularState" = "soru7",
+         "abortionBan" = "soru8",
+         "stateOfEmergency" = "soru9",
+         "newParty" = "soru10",
+         "party" = "parti") %>%
+  mutate(gender = ifelse(gender == "Erkek", "Male", gender),
+         gender = ifelse(gender == "Kadın", "Female", gender),
+         region = case_when(
+           region == "Akdeniz" ~ "Mediterranean",
+           region == "Güneydoğu" ~ "Southeastern Anatolia",
+           region == "Doğu Anadolu" ~ "Eastern Anatolia",
+           region == "Ege" ~ "Aegean",
+           region == "İç Anadolu" ~ "Central Anatolia",
+           region == "Karadeniz" ~ "Black Sea",
+           TRUE ~ region),
+         education = case_when(
+           education == "İlkokul" ~ "Primary School",
+           education == "Ortaokul" ~ "Middle School",
+           education == "Lise" ~ "High School", 
+           education == "Ön Lisans" ~ "2-year College Degree",
+           education == "Lisans" ~ "4-year College Degree",
+           education == "Lisans Üstü" ~ "Graduate School"),
+         economicalSituation = ifelse(economicalSituation == "Hayır", "No", economicalSituation),
+         economicalSituation = ifelse(economicalSituation == "Evet", "Yes", economicalSituation),
+         educationalReform = ifelse(educationalReform == "Hayır", "No", educationalReform),
+         educationalReform = ifelse(educationalReform == "Evet", "Yes", educationalReform),
+         againstPrivatization = ifelse(againstPrivatization == "Hayır", "No", againstPrivatization),
+         againstPrivatization = ifelse(againstPrivatization == "Evet", "Yes", againstPrivatization),
+         execution = ifelse(execution == "Hayır", "No", execution),
+         execution = ifelse(execution == "Evet", "Yes", execution),
+         objectiveMedia = ifelse(objectiveMedia == "Hayır", "No", objectiveMedia),
+         objectiveMedia = ifelse(objectiveMedia == "Evet", "Yes", objectiveMedia),
+         alcoholBan = ifelse(alcoholBan == "Hayır", "No", alcoholBan),
+         alcoholBan = ifelse(alcoholBan == "Evet", "Yes", alcoholBan),
+         secularState = ifelse(secularState == "Hayır", "No", secularState),
+         secularState = ifelse(secularState == "Evet", "Yes", secularState),
+         abortionBan = ifelse(abortionBan == "Hayır", "No", abortionBan),
+         abortionBan = ifelse(abortionBan == "Evet", "Yes", abortionBan),
+         stateOfEmergency = ifelse(stateOfEmergency == "Hayır", "No", stateOfEmergency),
+         stateOfEmergency = ifelse(stateOfEmergency == "Evet", "Yes", stateOfEmergency),
+         newParty = ifelse(newParty == "Hayır", "No", newParty),
+         newParty = ifelse(newParty == "Evet", "Yes", newParty))
+```
+
+- Datasets: Political Chronology:
+
+```{r political-chronology}
+#reading in the data, translating it to English, assigning 1-7 for political positions
+political_chronology <- read_csv("political_chronology.csv") %>%
+  dplyr::select(-c("Source", "Publications", "Notes")) %>%
+  mutate(PoliticalPosition = case_when(
+    PoliticalPosition == "Aşırı Sol" ~ "Far-left",
+    PoliticalPosition == "Sol" ~ "Left", 
+    PoliticalPosition == "Merkez Sol" ~ "Center-left", 
+    PoliticalPosition == "Merkez Sağ" ~ "Center-right", 
+    PoliticalPosition == "Sağ" ~ "Right", 
+    PoliticalPosition == "Merkez" ~ "Center", 
+    PoliticalPosition == "Aşırı Sağ" ~ "Far-right"),
+         Ideology = case_when(
+    Ideology == "Bolşevizm" ~ "Bolshevism", 
+    Ideology == "Komünizm" ~ "Communism", 
+    Ideology == "Atatürkçülük, Sosyal liberalizm, Sosyal demokrasi" ~ "Ataturkism, Social Liberalism, Social Democracy", 
+    Ideology == "Muhafazakarlık, Liberalizm" ~ "Conservatism, Liberalism", 
+    Ideology == "Liberalizm" ~ "Liberalism", 
+    Ideology == "Ekonomik liberalizm, Muhafazakarlık" ~ "Economic Liberalism, Conservatism", 
+    Ideology == "Marksizm, Sosyalizm" ~ "Marxism, Socialism", 
+    Ideology == "Muhafazakarlık, Milliyetçilik" ~ "Conservatism, Nationalism", 
+    Ideology == "Milliyetçilik" ~ "Nationalism", 
+    Ideology == "Marksizm, Leninizm, Sosyalizm" ~ "Marxism, Leninism, Socialism", 
+    Ideology == "Milliyetçilik, Turancılık, Türkçülük" ~ "Nationalism, Turanism, pan-Turkism", 
+    Ideology == "Bilimsel Sosyalizm" ~ "Scientific Socialism", 
+    Ideology == "Liberalizm, Mufazakarlık" ~ "Conservatism, Liberalism", 
+    Ideology == "Marksizm-Leninizm, Maoizm" ~ "Marxism, Leninism, Maoism", 
+    Ideology == "Sosyalizm" ~ "Socialism", 
+    Ideology == "Marksizm-Leninizm" ~ "Marxism, Leninism", 
+    Ideology == "Bilimsel Sosyalizm, Maoizm, Milli Demokratik Devrim" ~ "Scientific Socialism, Maoism, National Democratic Revolution", 
+    Ideology == "Ülkücülük, Türk Milliyetçiliği, Türkçülük, Turancılık" ~ "Idealism, Turkish Nationalism, pan-Turkism, Turanism", 
+    Ideology == "Milli Görüş,İslamcılık,Muhafazakarlk" ~ "National Vision, Islamism, Conservatism", 
+    Ideology == "Milliyetçilik,Demokrasi,Anti-liberalizm,Anti-sosyalizm" ~ "Nationalism, Democracy, Anti-liberalism, Anti-socialism", 
+    Ideology == "Soyalizm, Maoizm" ~ "Socialism, Maoism", 
+    Ideology == "Sosyal Demokrasi, Laiklik" ~ "Social Democracy, Securalism", 
+    Ideology == "Muhafazakârlık, Türk milliyetçiliği, Ekonomik liberalizm" ~ "Conservatism, Turkish Nationalism, Economic Liberalism", 
+    Ideology == "Sosyal Demokrasi, Atatürkçülük" ~ "Social Democracy, Ataturkism", 
+    Ideology == "Bilimsel Sosyalizm, Maoizm" ~ "Scientific Socialism, Maoism", 
+    Ideology == "Kürt milliyetçiliği" ~ "Kurdish Nationalism", 
+    Ideology == "Milliyetçilik,Halkçılık,Sosyalizm" ~"Nationalism, Populism, Socialism", 
+    Ideology == "İslamcılık, Ümmetçilik, Muhafazakârlık, Yeni Osmanlıcılık, Türk milliyetçiliği, Ülkücülük, Turancılık" ~
+      "Islamism, pan-Islamism, Conservatism, neo-Ottomanism, Turkish Nationalism, Idealism, Turanism", 
+    Ideology == "Sosyalizm, Komünizm" ~ "Socialism, Communism", 
+    Ideology == "Klasik Liberalizm" ~ "Classical Liberalism", 
+    Ideology == "Liberter Sosyalizm" ~ "Libertarian Socialism", 
+    Ideology == "Troçkizm" ~ "Trotskyism", 
+    Ideology == "Kemalizm, Türk Milliyetçiliği" ~ "Ataturkism, Turkish Nationalism", 
+    Ideology == "Milliyetçilik,Muhafazakarlık" ~ "Conservatism, Nationalism", 
+    Ideology == "Muhafazakarlık,Ekonomik liberalizm,Anti-milliyetçilik" ~ "Conservatism, Economic Liberalism, Anti-nationalism", 
+    Ideology == "Milli Görüş, Muhafazakarlık, İslamcılık, Ümmetçilik" ~ "National Vision, Conservatism, Islamism, pan-Islamism", 
+    Ideology == "Muhafazakarlık, Türk milliyetçiliği" ~ "Conservatism, Turkish Nationalism", 
+    Ideology == "Komünizm, Marksizim-Leninizm" ~ "Communism, Marxism, Leninism", 
+    Ideology == "Milliyetçilik,Halkçılık,Sosyalizm" ~ "Nationalism, Populism, Socialism", 
+    Ideology == "Atatürkçülük" ~ "Ataturkism", 
+    Ideology == "Sosyalist Demokrasi,Marksizm-Leninizm,Enternasyonalizm" ~ "Socialism Democracy, Marxism, Leninism, Internationalism", 
+    Ideology == "Marksizm-Leninizm,Bilimsel Sosyalizm" ~ "Marxism, Leninism, Scientific Socialism", 
+    Ideology == "Atatürkçülük, Türk Milliyetçiliği, Sosyal Demokrasi" ~ "Ataturkism, Turkish Nationalism, Social Democracy", 
+    Ideology == "Marksizm-Leninizm,Sosyalizm" ~ "Marxism, Leninism, Socialism", 
+    Ideology == "Sosyal Demokrasi, Kürt Milliyetçiliği" ~ "Social Democracy, Kurdish Nationalism", 
+    Ideology == "Demokrat" ~ "Democrat", 
+    Ideology == "Ekonomik Liberalizm,Demokrasi,Muhafazakarlık,Milliyetçilik" ~ "Economic Liberalism, Democracy, Conservatism, Nationalism", 
+    Ideology == "Türk milliyetçiliği" ~ "Turkish Nationalism", 
+    Ideology == "İslamcılık,Ümmetçilik" ~ "Islamism, pan-Islamism", 
+    Ideology == "Devrimci Marksizm, Komünizm, Sosyalizm" ~ "Revolutionary Marxism, Communism, Socialism", 
+    Ideology == "Türk Milliyetçiliği, Halkçılık, Sosyal Adaletçilik" ~ "Turkish Nationalism, Populism, Social Justice", 
+    Ideology == "Sosyal Demokrasi,Sosyal Liberalizm,Liberal Milliyetçilik,Etnik Milliyetçilik" ~ "Social Democracy, Social Liberalism, Liberal Nationalism, Ethnic Nationalism", 
+    Ideology == "Türkçülük,Ulusalcılık,Pan-Türkizm" ~ "Turkism, Nationalism, pan-Turkism", 
+    Ideology == "Sosyal Demokrasi" ~ "Social Democracy", 
+    Ideology == "Muhafazakârlık, Ümmetçilik, Ekonomik liberalizm" ~ "Conservatism, pan-Islamism, Economic Liberalism", 
+    Ideology == "Demokratik sosyalizm, LGBT, Feminizm, Anti-millietçilik" ~ "Democratic Socialism, LGBT, Feminism, Anti-nationalism", 
+    Ideology == "Türk Milliyetçiliği, Sağcılık, Hakçılık" ~ "Turkish Nationalism, Rightism, Populism", 
+    Ideology == "Sol liberteryenizm, Yeşil liberalizm, Sosyal liberalizm" ~ "Left Libertarianism, Green Liberalism, Social Liberalism", 
+    Ideology == "İslami Demokrasi, Ümmetçilik, Muhafazakârlık, Sosyal adaletçilik" ~ "Islamic Democracy, pan-Islamism, Conservatism, Social Justice", 
+    Ideology == "Türk milliyetçiliği,Muhafazakarlık" ~ "Turkish Nationalism, Conservatism", 
+    Ideology == "Marksizm-Leninizm,Enternasyonalizm" ~ "Marxism, Leninism, Internationalism", 
+    Ideology == "Çevrecilik" ~ "Environmentalism", 
+    Ideology == "Komünizm, Marksizm-Leninizm" ~ "Communism, Marxism, Leninism", 
+    Ideology == "Sol liberteryenizm, Sosyal liberalizm" ~ "Left Libertarianism, Social Liberalism", 
+    Ideology == "Marksizm-Leninizm, Bilimsel sosyalizm" ~ "Marxism, Leninism, Scientific Socialism", 
+    Ideology == "Ekonomik liberalizm, Muhafazakârlık" ~ "Economic Liberalism, Conservatism", 
+    Ideology == "Marksizm" ~ "Marxism", 
+    Ideology == "Ulusalcılık, Muhafazakarlık" ~ "Nationalism, Conservatism", 
+    Ideology == "Türk Milliyetçiliği" ~ "Turkish Nationalism")) %>%
+  rename(Parti = Abbreviation) %>%
+  mutate(Founded = ifelse(Parti == "CHP", 1992, Founded), # these parties were closed and opened again in the history. I am just assigning one of the durations that they were operating in for now, since I will address this later
+         Dissolved = ifelse(Parti == "CHP", "-", Dissolved),
+         Founded = ifelse(Leader == "Hikmet Kıvılcımlı", 1954, Founded),
+         Dissolved = ifelse(Leader == "Hikmet Kıvılcımlı", 1957, Dissolved),
+         Founded = ifelse(Parti == "MHP", 1969, Founded),
+         Dissolved = ifelse(Parti == "MHP", 1980, Dissolved)) %>%
+  rbind(c("Vatan Partisi", "VP", "Hikmet Kıvılcımlı", 1975, 1981, "İstanbul Sulh Ceza Hakimliği Karar", "TKP1920", "+HKP", "Far-left", "Marxism, Leninism, Socialism")) %>% # was in another dataset but was missing here, so I thought I could add it myself
+  mutate(Dissolved = ifelse(Dissolved == "-", 2021, Dissolved)) %>% # if the parties did not dissolve yet, I will assign 2021 -- this is just for the purposes of graphing the intervals later
+  mutate(PoliticalPosition = case_when(
+    PoliticalPosition == "Far-right" ~ 1, # assigning 1-7 for political positions
+    PoliticalPosition == "Right" ~ 2,
+    PoliticalPosition == "Center-right" ~ 3, 
+    PoliticalPosition == "Center" ~ 4, 
+    PoliticalPosition == "Center-left" ~ 5, 
+    PoliticalPosition == "Left" ~ 6, 
+    PoliticalPosition == "Far-left" ~ 7))
+``` 
+
+- Datasets: Press Freedom:
+
+```{r press-freedom}
+# reading in the data, renaming the countries to resolve conflicts
+press_freedom <- "https://rsf.org/en/ranking_table" %>% 
+  read_html() %>% 
+  html_nodes("table") %>%
+  .[[1]] %>%
+  html_table() %>%
+  dplyr::select(c(2,3)) %>% 
+  rename("region" = "Countries & regions") %>%
+  mutate(region = ifelse(region == "Bosnia-Herzegovina", "Bosnia and Herzegovina", region),
+         region = ifelse(region == "United Kingdom", "UK", region))
+```
+
+- Press Freedom in Europe:
+
+```{r press-freedom-europe}
+# list of european countries
+european_countries <- c("Albania", "Andorra", "Austria", "Azerbaijan", "Belarus", "Belgium", "Bosnia and Herzegovina", "Bulgaria", "Croatia", "Cyprus", "Czech Republic", "Denmark", "Estonia", "Finland", "France", "Georgia", "Germany", "Greece", "Hungary", "Iceland", "Ireland", "Italy", "Kazakhstan", "Kosovo", "Latvia", "Liechtenstein", "Lithuania", "Luxembourg", "Malta", "Moldova", "Monaco", "Montenegro", "Netherlands", "North Macedonia", "Norway", "Poland", "Portugal", "Romania", "Russia", "San Marino", "Serbia", "Slovakia", "Slovenia", "Spain", "Sweden", "Switzerland", "Turkey", "Ukraine", "UK", "Vatican City")
+
+# press freedom data for european countries
+europe <- map_data("world") %>%
+  filter(region %in% european_countries) %>%
+  left_join(press_freedom, by = "region") 
+
+# centroids for all countries
+centroids <- "https://developers.google.com/public-data/docs/canonical/countries_csv" %>% 
+  read_html() %>% 
+  html_nodes("table") %>%
+  .[[1]] %>% 
+  html_table() %>%
+  rename("region" = "name") %>%
+  left_join(press_freedom, by = "region")
+
+# centroids for european countries
+european_centroids <- centroids %>%
+  filter(region %in% european_countries)
+
+# arranging positions for labels using the centroids, fixing Russia and Kazakhstan values for graphing purposes
+european_positions <- european_centroids %>%
+  mutate(latitude = ifelse(region == "Russia", 58, latitude),
+         longitude = ifelse(region == "Russia", 50, longitude),
+         latitude = ifelse(region == "Kazakhstan", 47.90227, latitude),
+         longitude = ifelse(region == "Kazakhstan", 55, longitude))
+
+# graphing Press Freedom Ranking 2021 - Europe
+ggplot() +
+  geom_polygon(data = europe, aes(x = long, y = lat, group = group, fill = Ranking), color = "black") + 
+  xlim(NA, 60)  + ylim(NA, 70) +
+  scale_fill_gradient(high = "darkred", low = "darkgreen") +
+  labs(x = "", y = "", fill = "Rank", title = "Press Freedom Ranking 2021 - Europe", subtitle = "total #: 183 countries & regions") + 
+  theme(panel.background = element_rect(fill = "transparent",colour = NA),
+        plot.background = element_rect(fill = "transparent",colour = NA),
+        axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5)) 
+
+# graphing Press Freedom Ranking 2021 - Europe with labels showing the rankings for each country
+ggplot() +
+  geom_polygon(data = europe, aes(x = long, y = lat, group = group, fill = Ranking), color = "black") + 
+  xlim(NA, 60)  + ylim(NA, 70) +
+  scale_fill_gradient(high = "darkred", low = "darkgreen") +
+  labs(x = "", y = "", fill = "Rank", title = "Press Freedom Ranking 2021 - Europe", subtitle = "total #: 183 countries & regions") + 
+  theme(panel.background = element_rect(fill = "transparent",colour = NA),
+        plot.background = element_rect(fill = "transparent",colour = NA),
+        axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5)) + 
+  geom_label(data = european_positions, size = 2, aes(x = longitude, y = latitude, label = Ranking))
+
+# the countries with a rank <= 10 and the countries with a rank >= 150
+ranking_ge_150_countries = c("Azerbaijan", "Belarus", "Kazakhstan", "Turkey", "Russia")
+ranking_ge_150 <- european_positions %>%
+  filter(region %in% ranking_ge_150_countries)
+ranking_le_10_countries = c("Norway", "Finland", "Sweden", "Denmark", "Netherlands", "Portugal", "Switzerland")
+ranking_le_10 <- european_positions %>%
+  filter(region %in% ranking_le_10_countries)
+
+# graphing the countries with a rank >= 150
+ggplot() +
+  geom_polygon(data = europe, aes(x = long, y = lat, group = group, fill = Ranking), color = "black") + 
+  xlim(NA, 60)  + ylim(NA, 70) +
+  scale_fill_gradient(high = "darkred", low = "darkgreen") +
+  labs(x = "", y = "", fill = "Rank", title = "Press Freedom Ranking 2021 - Europe: Countries with a Ranking >= 150", subtitle = "total #: 183 countries & regions") + 
+  theme(panel.background = element_rect(fill = "transparent",colour = NA),
+        plot.background = element_rect(fill = "transparent",colour = NA),
+        axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5)) + 
+  geom_label(data = ranking_ge_150, size = 2, aes(x = longitude, y = latitude, label = Ranking))
+
+# graphing the countries with a rank <= 10
+ggplot() +
+  geom_polygon(data = europe, aes(x = long, y = lat, group = group, fill = Ranking), color = "black") + 
+  xlim(NA, 60)  + ylim(NA, 70) +
+  scale_fill_gradient(high = "darkred", low = "darkgreen") +
+  labs(x = "", y = "", fill = "Rank", title = "Press Freedom Ranking 2021 - Europe: Countries with a Ranking <= 10", subtitle = "total #: 183 countries & regions") + 
+  theme(panel.background = element_rect(fill = "transparent",colour = NA),
+        plot.background = element_rect(fill = "transparent",colour = NA),
+        axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5)) + 
+  geom_label(data = ranking_le_10, size = 2, aes(x = longitude, y = latitude, label = Ranking))
+```
+
+- Press Freedom in Neighbors: 
+
+```{r press-freedom-neighbors}
+# list of turkey's neighbors and Cyprus. Cyprus is included due to proximity and also having a Northern Turkish Republic. 
+turkey_and_neighbors_and_cyprus <- c("Turkey", "Greece", "Bulgaria", "Azerbaijan", "Georgia", "Armenia", "Syria", "Iran", "Iraq", "Cyprus")
+
+# data for the countries around turkey
+around_turkey <- map_data("world") %>%
+  filter(region %in% turkey_and_neighbors_and_cyprus) %>%
+  left_join(press_freedom, by = "region") 
+
+# centroids
+around_turkey_centroids <- centroids %>%
+  filter(region %in% turkey_and_neighbors_and_cyprus)
+
+# graphing the Press Freedom Ranking 2021 - Around Turkey
+ggplot() +
+  geom_polygon(data = around_turkey, aes(x = long, y = lat, group = group, fill = Ranking), color = "black") + 
+  scale_fill_gradient(high = "darkred", low = "darkgreen") +
+  labs(x = "", y = "", fill = "Rank", title = "Press Freedom Ranking 2021 - Around Turkey", subtitle = "total #: 183 countries & regions") + 
+  theme(panel.background = element_rect(fill = "transparent",colour = NA),
+        plot.background = element_rect(fill = "transparent",colour = NA),
+        axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5)) 
+
+# adding labels
+ggplot() +
+  geom_polygon(data = around_turkey, aes(x = long, y = lat, group = group, fill = Ranking), color = "black") + 
+  scale_fill_gradient(high = "darkred", low = "darkgreen") +
+  labs(x = "", y = "", fill = "Rank", title = "Press Freedom Ranking 2021 - Around Turkey", subtitle = "total #: 183 countries & regions") + 
+  theme(panel.background = element_rect(fill = "transparent",colour = NA),
+        plot.background = element_rect(fill = "transparent",colour = NA),
+        axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5)) + 
+  geom_label(data = around_turkey_centroids, size = 2, aes(x = longitude, y = latitude, label = Ranking))
+```
+
+- Univariate Summaries: 
+
+```{r survey-data-univariate}
+# to make the code more readable, I am creating center and center_sub
+center <- theme(plot.title = element_text(hjust = 0.5))
+center_sub <- theme(plot.subtitle = element_text(hjust = 0.5))
+
+# the function graphProducer takes an input given and produces the univariate summary for it
+graphProducer <- function(input)
+{
+    ggplot(data = survey_data) + 
+    geom_bar(aes(x = input, y =  round(..count../sum(..count..),3)*100, fill = input)) + #round(..count../sum(..count..),3)*100 is used to calculate the percentage with one decimal
+    geom_text(aes(x = input, y =  round(..count../sum(..count..),3)*100 + 2, label = round(..count../sum(..count..),3)*100), stat = "count", colour = "black") + # y value is increased by two to make the labels a little higher 
+    guides(fill = "none") + 
+    labs(y = "Percentage (%)", subtitle = "From All Responses") + 
+    ylim(0, 100) + 
+    center + 
+    center_sub
+}
+
+# the univariate summaries for all of the variables are generated using the function graphProducer declared above 
+graphProducer(survey_data$gender) + labs(title = "Distribution of Gender", x = "Gender")
+graphProducer(survey_data$age) + labs(title = "Distribution of Age", x = "Age") 
+graphProducer(survey_data$region) + labs(title = "Distribution of Region", x = "Region") + theme(axis.text.x = element_text(angle = 15, hjust = 1));
+graphProducer(survey_data$education) + labs(title = "Distribution of Education", x = "Education") + theme(axis.text.x = element_text(angle = 15, hjust = 1));
+graphProducer(survey_data$economicalSituation) + labs(title = "Do you think our economical condition is good?", x = "Response")
+graphProducer(survey_data$educationalReform) + labs(title = "Is an education reform necessary?", x = "Response") 
+graphProducer(survey_data$againstPrivatization) + labs(title = "Would you oppose privatization?", x = "Response") 
+graphProducer(survey_data$execution) + labs(title = "Should the state use the penalty of execution for certain crimes?", x = "Response") 
+graphProducer(survey_data$objectiveMedia) + labs(title = "Do you find our journalists objective enough?", x = "Response") 
+graphProducer(survey_data$alcoholBan) + labs(title = " Do you support the prohibition of alcohol consumption after 11 pm?", x = "Response") 
+graphProducer(survey_data$secularState) + labs(title = "Would you like to live in a more secular state?", x = "Response") 
+graphProducer(survey_data$abortionBan) + labs(title = "Do you support banning abortion?", x = "Response") 
+graphProducer(survey_data$stateOfEmergency) + labs(title = "Do you think the State of Emergency is restricting people’s freedom?", x = "Response") 
+graphProducer(survey_data$newParty) + labs(title = "Would you want a new party to enter the parliament?", x = "Response") 
+graphProducer(survey_data$party) + labs(title = "Which party are you supporting?", x = "Party") +
+  scale_fill_manual(values = c("MHP" = "#ff0100", "AKP" = "#e99a99", "IYI PARTI" = "#8e7cc3", "CHP" = "#4285f4", "HDP" = "#0c5394", "DIĞER" = "green")) # used to assign colors consistently based on the political positions of the countries
+```
+
+- Bivariate Summaries:
+
+```{r survey-party-comparison}
+# this chunk is used to create bivariate summaries for each variable.
+
+# this factor is defined for the purpose of reordering the facets.
+survey_data$party_factor = factor(survey_data$party, levels=c("HDP", "CHP", "IYI PARTI", "AKP", "MHP", "DIĞER"))
+
+# this list is used for renaming the facet labels, since I forgot to translate "diğer" to "other" in one of the chunks above
+facet_names <- list("HDP" = "HDP", 
+                    "CHP" = "CHP", 
+                    "IYI PARTI" = "IYI",
+                    "AKP" = "AKP",
+                    "MHP" = "MHP",
+                    "DIĞER" = "OTHER")
+
+# function facet_labeller returns the appropriate label for each facet
+facet_labeller <- function(variable,value){
+  return(facet_names[value])
+}
+
+# function compareParties facets the results by the party voted for, and shows the percentage of people responding to the questions vs. their responses
+compareParties <- function(input)
+{
+  ggplot(data = survey_data) + 
+    geom_bar(aes(x = input, y = round((..count..)/(tapply(..count..,..PANEL..,sum)[..PANEL..]),3)*100, fill = input)) + # the y argument created thanks to https://stackoverflow.com/questions/4725339/percentage-on-y-lab-in-a-faceted-ggplot-barchart, used for the purpose of generating the percentages facet-wise
+    facet_grid(. ~ survey_data$party_factor, labeller=facet_labeller, scales = "free_y") + 
+    geom_text(aes(x = input, 
+                  y = round((..count..)/(tapply(..count..,..PANEL..,sum)[..PANEL..]),3)*100 + 2, 
+                  label = round((..count..)/(tapply(..count..,..PANEL..,sum)[..PANEL..]),3)*100, 
+                  group=party_factor), 
+              size = 3, stat = "count", colour = "black") +
+    guides(fill = "none") + 
+    labs(y = "Percentage (%)") + 
+    center 
+}
+
+# creating the bivariate summaries for each variable
+compareParties(survey_data$gender) + labs(title = "Distribution of Gender", x = "Gender")
+compareParties(survey_data$age) + labs(title = "Distribution of Age", x = "Age") + theme(axis.text.x = element_text(angle = 45, hjust = 1));
+compareParties(survey_data$region) + labs(title = "Distribution of Region", x = "Region") + theme(axis.text.x = element_text(angle = 45, hjust = 1));
+compareParties(survey_data$education) + labs(title = "Distribution of Education", x = "Education") + theme(axis.text.x = element_text(angle = 70, hjust = 1));
+compareParties(survey_data$economicalSituation) + labs(title = "Do you think our economical condition is good?", x = "Response")
+compareParties(survey_data$educationalReform) + labs(title = "Is an education reform necessary?", x = "Response") 
+compareParties(survey_data$againstPrivatization) + labs(title = "Would you oppose privatization?", x = "Response") 
+compareParties(survey_data$execution) + labs(title = "Should the state use the penalty of execution for certain crimes?", x = "Response")
+compareParties(survey_data$objectiveMedia) + labs(title = "Do you find our journalists objective enough?", x = "Response") 
+compareParties(survey_data$alcoholBan) + labs(title = " Do you support the prohibition of alcohol consumption after 11 pm?", x = "Response")
+compareParties(survey_data$secularState) + labs(title = "Would you like to live in a more secular state?", x = "Response") 
+compareParties(survey_data$abortionBan) + labs(title = "Do you support banning abortion?", x = "Response") 
+compareParties(survey_data$stateOfEmergency) + labs(title = "Do you think the State of Emergency is restricting people’s freedom?", x = "Response") 
+compareParties(survey_data$newParty) + labs(title = "Would you want a new party to enter the parliament?", x = "Response") 
+```
+
+- Logistic Regression & Prediction Model: 
+
+```{r akp-voter}
+# log_data prepares the survey_data for logistic regression by assigning 1 for yes and 0 for no for all the question responses
+log_data <- survey_data %>%
+  mutate(economicalSituation = ifelse(economicalSituation == "Yes", 1, 0),
+         educationalReform = ifelse(educationalReform == "Yes", 1, 0),
+         againstPrivatization = ifelse(againstPrivatization == "Yes", 1, 0),
+         execution = ifelse(execution == "Yes", 1, 0),
+         objectiveMedia = ifelse(objectiveMedia == "Yes", 1, 0),
+         alcoholBan = ifelse(alcoholBan == "Yes", 1, 0),
+         secularState = ifelse(secularState == "Yes", 1, 0),
+         abortionBan = ifelse(abortionBan == "Yes", 1, 0),
+         stateOfEmergency = ifelse(stateOfEmergency == "Yes", 1, 0),
+         newParty = ifelse(newParty == "Yes", 1, 0))
+
+# selecting the data for AKP voters only
+log_data_akp <- log_data %>%
+         mutate(party = ifelse(party == "AKP", 1, 0)) %>%
+         rename(akpVoter = party)
+
+# creates a prediction model for voting for AKP, using logistic regression 
+modelAKP <- glm(akpVoter ~ economicalSituation + educationalReform + againstPrivatization + execution + objectiveMedia + 
+                alcoholBan + secularState + abortionBan + stateOfEmergency + newParty, family = binomial(link = "logit"), data = log_data_akp)
+summary(modelAKP)
+
+#coefficients for the model
+modelAKP[1]
+```
+So, our model for voting for AKP is, -1.3268 + 0.3933 * economicalSituation + 0.4726 * educationalReform + -0.3377 * againstPrivatization + 0.8834 * execution + 1.3034 * objectiveMedia + 0.8656 * alcoholBan + -1.4627 * secularState + 0.4610 * abortionBan + -1.4658 * stateOfEmergency + -0.7017 * newParty. 
+
+Let's calculate the change that someone votes for AKP, given that they think,
+- our economical situation is not good
+- we need to have an educational reform 
+- is against privatization
+- is against execution
+- does not think media is objective enough
+- does not support alcohol ban
+- wants to live in a more secular state
+- does not support abortion ban
+- does not support state of emergency
+- does want a new party to enter the parliement. These are actually my own views, so let's see what the model will come up with.
+
+```{r akp-and-me}
+# estimates the chances of voting for AKP
+plogis(-1.3268 + 0.3933 * 0 + 0.4726 * 1 + -0.3377 * 1 + 0.8834 * 0 + 1.3034 * 0 + 0.8656 * 0 + -1.4627 * 1 + 0.4610 * 0 + -1.4658 * 1 + -0.7017 * 1)
+```
+My chances of voting for AKP, according to our model, is 0.7985582 %.
+
+```{r chp-voter}
+# see chunk akp_voter above for more details. the same process is done by using data of CHP voters, and the modelCHP predicts the chances of voting for CHP
+log_data_chp <- log_data %>%
+         mutate(party = ifelse(party == "CHP", 1, 0)) %>%
+         rename(chpVoter = party)
+
+modelCHP <- glm(chpVoter ~ economicalSituation + educationalReform + againstPrivatization + execution + objectiveMedia + 
+                alcoholBan + secularState + abortionBan + stateOfEmergency + newParty, family = binomial(link = "logit"), data = log_data_chp)
+summary(modelCHP)
+```
+Our model for voting for CHP is, -2.23981 + 0.05376 * economicalSituation + 0.81346 * educationalReform + 0.28724 * againstPrivatization + -0.60489 * execution + -0.77799 * objectiveMedia + -0.64039 * alcoholBan + 1.01551 * secularState + -0.86860 * abortionBan + 0.77121 * stateOfEmergency + -0.54653 * newParty. 
+
+Let's calculate the chances of me voting for CHP:
+
+```{r me-and-chp}
+plogis(-2.23981 + 0.05376 * 0 + 0.81346 * 1 + 0.28724 * 1 + -0.60489 * 0 + -0.77799 * 0 + -0.64039 * 0 + 1.01551 * 1 + -0.86860 * 0 + 0.77121 * 1 + -0.54653 * 1)
+```
+The chances of me voting for CHP is 52.5%.
+
+```{r iyi-voter}
+# see akp_voter above for comments
+log_data_iyi <- log_data %>%
+         mutate(party = ifelse(party == "IYI PARTI", 1, 0)) %>%
+         rename(iyiVoter = party)
+
+modelIYI <- glm(iyiVoter ~ economicalSituation + educationalReform + againstPrivatization + execution + objectiveMedia + 
+                alcoholBan + secularState + abortionBan + stateOfEmergency + newParty, family = binomial(link = "logit"), data = log_data_iyi)
+summary(modelIYI)
+modelIYI[1]
+```
+Our model for voting for IYI is, -3.3655 + -0.3038 * economicalSituation +  -0.1375  * educationalReform +  0.1721 * againstPrivatization +  0.5753 * execution + -0.2933  * objectiveMedia + 0.0296 * alcoholBan + 1.0964 * secularState + 0.1956 * abortionBan + 0.6845 * stateOfEmergency + 0.9324 * newParty. 
+
+```{r me-and-iyi}
+plogis(-3.3655 + -0.3038 * 0 +  -0.1375  * 1 +  0.1721 * 1 +  0.5753 * 0 + -0.2933  * 0 + 0.0296 * 0 + 1.0964 * 1 + 0.1956 * 0 + 0.6845 * 1 + 0.9324 * 1)
+```
+The chances of me voting for IYI is 35.0% according to our model.
+
+```{r mhpVoter}
+# see akp_voter above for comments
+log_data_mhp <- log_data %>%
+         mutate(party = ifelse(party == "MHP", 1, 0)) %>%
+         rename(mhpVoter = party)
+
+modelMHP <- glm(mhpVoter ~ economicalSituation + educationalReform + againstPrivatization + execution + objectiveMedia + 
+                alcoholBan + secularState + abortionBan + stateOfEmergency + newParty, family = binomial(link = "logit"), data = log_data_mhp)
+summary(modelMHP)
+```
+
+Our model for voting for MHP is, -2.96927959 +  -0.42112092* economicalSituation +  -0.07761032    * educationalReform +  -0.60740164   * againstPrivatization +  0.91139984 * execution + -0.12832052  * objectiveMedia +  -1.08544652  * alcoholBan + 0.28217820 * secularState + 0.82007304 * abortionBan + -1.07897657 * stateOfEmergency + -0.45740433 
+ * newParty. 
+
+```{r me-and-mhp}
+plogis(-2.96927959 +  -0.42112092* 0 +  -0.07761032    * 1 +  -0.60740164   * 1 +  0.91139984 * 0 + -0.12832052  * 0 +  -1.08544652  * 0 + 0.28217820 * 1 + 0.82007304 * 0 + -1.07897657 * 1 + -0.45740433 * 1)
+```
+The chances of me voting for MHP is 0.732948% according to our model.
+
+```{r hdpVoter}
+# see akp_voter above for comments
+log_data_hdp <- log_data %>%
+         mutate(party = ifelse(party == "HDP", 1, 0)) %>%
+         rename(hdpVoter = party)
+
+modelHDP <- glm(hdpVoter ~ economicalSituation + educationalReform + againstPrivatization + execution + objectiveMedia + 
+                alcoholBan + secularState + abortionBan + stateOfEmergency + newParty, family = binomial(link = "logit"), data = log_data_hdp)
+summary(modelHDP)
+modelHDP[1]
+```
+
+Our model for voting for HDP is, -0.96129803 +  -0.13196787  * economicalSituation + -2.64712350 * educationalReform +   0.98630771   * againstPrivatization +  -1.05927191 * execution + 0.41088629   * objectiveMedia +  0.03229371   * alcoholBan + -1.37492229  * secularState + -0.62312652 * abortionBan + 0.66240439   * stateOfEmergency + 0.11682536 
+ * newParty. 
+
+```{r me-and-hdp}
+plogis(-0.96129803 +  -0.13196787  * 0 + -2.64712350 * 1 +   0.98630771   * 1 +  -1.05927191 * 0 + 0.41088629   * 0 +  0.03229371   * 0 + -1.37492229  * 1 + -0.62312652 * 0 + 0.66240439   * 1 + 0.11682536 * 1) 
+```
+The chances of me voting for HDP is 3.850111% according to our model.
+
+```{r otherVoter}
+# see akp_voter above for comments
+log_data_other <- log_data %>%
+         mutate(party = ifelse(party == "DIĞER", 1, 0)) %>%
+         rename(otherVoter = party)
+
+modelOther <- glm(otherVoter ~ economicalSituation + educationalReform + againstPrivatization + execution + objectiveMedia + 
+                alcoholBan + secularState + abortionBan + stateOfEmergency + newParty, family = binomial(link = "logit"), data = log_data_other)
+summary(modelOther)
+modelOther[1]
+```
+
+Our model for voting for other parties is,  -1.7109071 +   0.1024852   * economicalSituation + 0.2957923 * educationalReform +   -0.2993574  * againstPrivatization +  -0.1983104  * execution + -0.4913799    * objectiveMedia +  0.1499936   * alcoholBan + 0.3836609  * secularState + 0.2227080 * abortionBan + -0.4498599    * stateOfEmergency + 0.3454827 * newParty. 
+
+```{r me-and-other}
+plogis(-1.7109071 +   0.1024852   * 0 + 0.2957923 * 1 +   -0.2993574  * 1 +  -0.1983104  * 0 + -0.4913799    * 0 +  0.1499936   * 0 + 0.3836609  * 1 + 0.2227080 * 0 + -0.4498599    * 1 + 0.3454827 * 1) 
+```
+The chances of me voting for another party is 19.22915%.
+
+So, according to the models that I have built, they estimate my chances of voting for parties as:
+CHP - 52.5%.
+IYI - 35.0%.
+OTHER - 19.22915%.
+HDP - 3.850111.
+AKP -  0.7985582%.
+MHP - 0.732948%.
+
+- Trying using multinom():
+
+```{r multinom}
+# this chunk is an effort to use multinom() to come up with the prediction model. It is not used  since I was not sure about how the interpret the coefficients, given that the coefficients were calculated with reference to the first group.
+corr_data <- log_data %>%
+  mutate(party = ifelse(party == "AKP", 1, party)) %>%
+  mutate(party = ifelse(party == "CHP", 2, party)) %>%
+  mutate(party = ifelse(party == "MHP", 3, party)) %>%
+  mutate(party = ifelse(party == "IYI PARTI", 4, party)) %>%
+  mutate(party = ifelse(party == "HDP", 5, party)) %>%
+  mutate(party = ifelse(party == "DIĞER", 6, party)) %>%
+  dplyr::select(-c("Timestamp", "gender", "age", "region", "education", "party_factor")) %>%
+  mutate(party = as.numeric(party))
+
+model <- multinom(party ~ economicalSituation + educationalReform + againstPrivatization + execution + objectiveMedia + 
+                alcoholBan + secularState + abortionBan + stateOfEmergency + newParty, data = corr_data)
+
+summary(model)
+```
+
+- Correlation Matrix: 
+
+```{r corr-matrix}
+# this chunk produces a correlation matrix, where the correlations between variables that are not statistically significant have an X mark
+corr <- cor(corr_data)
+pmat <- cor_pmat(corr_data)
+ggcorrplot(corr, outline.color = "black",   ggtheme = ggplot2::theme_gray,
+  colors = c("#6D9EC1", "white", "#E46726"), p.mat = pmat)
+```
+
+- Votes for Current 5 Main Parties:
+
+```{r general-votes-for-current-main-parties}
+names(general_election_results)[2] <- 'percentage' # I experienced that having the column name as % was causing problems, so here I am changing it to percentage
+
+general_election_results <- general_election_results %>%
+ mutate(date = make_date(Year, Month), # creating a new variable called date based on the year and month columns
+         percentage = gsub( "%", "", percentage), # getting rid of the percentage sign in the beginning of some values in the percentage column
+         percentage = as.numeric(gsub( ",", ".", percentage))) # making percentage numeric and changing , to . 
+
+#selecting the top 5 current main parties, graphing Percentage of Votes Gained By The Current 5 Main Parties over the Years
+general_election_results %>%
+  filter(Parti %in% c("AKP", "CHP", "MHP", "HDP", "İYİ")) %>%
+  ggplot() + 
+  geom_line(aes(x = date, y = percentage, color = Parti)) + 
+  geom_point(aes(x = date, y = percentage, color = Parti)) +
+  scale_color_manual(values = c("MHP" = "#ff0100", "AKP" = "#e99a99", "İYİ" = "#8e7cc3", "CHP" = "#4285f4", "HDP" = "#0c5394")) + 
+  labs(color = "Party", x = "Year", y = "Percentage of Votes", title = "Percentage of Votes Gained By The Current 5 Main Parties over the Years") + center
+
+# graphs the proportion of the seats in the parliement over the years, not included in the presentation
+general_election_results %>%
+  filter(Parti %in% c("AKP", "CHP", "MHP", "HDP", "İYİ")) %>%
+  ggplot() + 
+  geom_line(aes(x = date, y = Proportion, color = Parti)) + 
+  geom_point(aes(x = date, y = Proportion, color = Parti)) 
+```
+
+- Top Two Parties Voted over Time:
+
+```{r top-two-voted-over-time}
+# top two parties voted over time, not included in the presentation
+general_election_results %>%
+  group_by(date) %>%
+  arrange(desc(percentage)) %>%
+  slice(1:2) %>%
+  ggplot() + 
+  geom_line(aes(x = date, y = percentage, color = Parti)) + 
+  geom_point(aes(x = date, y = percentage, color = Parti)) 
+
+# top two parties voted over time, not included in the presentation, I just wanted to take a look at the gaps between them and how they are changing
+general_election_results %>%
+  group_by(date) %>%
+  arrange(desc(percentage)) %>%
+  slice(1:2) %>%
+  ggplot() + 
+  geom_line(aes(x = date, y = percentage, group = date)) + 
+  geom_point(aes(x = date, y = percentage, color = Parti)) 
+```
+
+- Most Recent Election Results:
+
+```{r most-recent-election}
+# setting the colors that I will be using in the graph
+colors_x <- c("#e99a99", "#4285f4", "#0c5394", "#ff0100", "#8e7cc3", "#980100", "#980100", "#093762")
+
+# graphing the percentages of votes of Turkish political parties in the 2018 election
+general_election_results %>%
+  filter(Year == 2018) %>%
+  dplyr::select(Parti, percentage, Proportion) %>%
+  ggplot() + 
+  geom_col(aes(x = reorder(Parti, -percentage), y = percentage), fill = colors_x) + 
+  geom_text(aes(x = Parti, y = percentage, label = percentage), vjust = -0.6, color = colors_x) + 
+  ylim(0, 45) + 
+  guides(fill = "none") + 
+  labs(x = "Parties", y = "Percentage of Votes", title = "Percentage of Votes of Turkish Political Parties", subtitle = "in 2018 General Elections") + center + center_sub
+
+# looking at percentage of votes vs. proportion of seats in the parliament for the 2018 election, not included in the presentation 
+general_election_results %>%
+  filter(Year == 2018) %>%
+  dplyr::select(Parti, percentage, Proportion) %>%
+  ggplot() + 
+  geom_point(aes(x = Parti, y = percentage, color = "percentage")) + 
+  geom_point(aes(x = Parti, y = Proportion * 100, color = "proportion")) + 
+  scale_color_manual(breaks = c("percentage", "proportion"),
+                      values = c("darkblue", "darkgreen"))
+```
+
+- Top Three Parties:
+
+```{r top-three-parties}
+# here I am trying to make a dataset of the parties that were in the top three in at least one election
+top_three <- general_election_results %>%
+  mutate(MP = as.integer(MP), # I had some problems with the variable types before, so here I am trying to make sure they all have the type that I want
+         TotalMP = as.integer(TotalMP),
+         Month = as.integer(Month),
+         Year = as.integer(Year)) %>%
+  left_join(political_chronology, by = "Parti") %>%
+  mutate(Founded = as.integer(Founded), # I had some problems with the variable types before, so here I am trying to make sure they all have the type that I want
+         Dissolved = as.integer(Dissolved),
+         percentage = as.double(percentage))  %>%
+  mutate(Founded = ifelse((Name == "Milliyetçi Hareket Partisi" & date <= 1980), 1969, Founded), # some parties were founded twice. so I am adjusting the years founded-dissolved based on this
+         Dissolved = ifelse((Name == "Milliyetçi Hareket Partisi" & date <= 1980), 1980, Dissolved),
+         Founded = ifelse((Name == "Milliyetçi Hareket Partisi" & date > 1980), 1993, Founded),
+         Dissolved = ifelse((Name == "Milliyetçi Hareket Partisi" & date > 1980), 2021, Dissolved),
+         Founded = ifelse((Name == "Cumhuriyet Halk Partisi" & date <= 1980), 1923, Founded),
+         Dissolved = ifelse((Name == "Cumhuriyet Halk Partisi" & date <= 1980), 1980, Dissolved),
+         Founded = ifelse((Name == "Cumhuriyet Halk Partisi" & date >= 1992), 1992, Founded),
+         Dissolved = ifelse((Name == "Cumhuriyet Halk Partisi" & date >= 1992), 2021, Dissolved),
+         Founded = ifelse((Name == "Demokrat Parti" & date <= 1961), 1946, Founded),
+         Dissolved = ifelse((Name == "Demokrat Parti" & date <= 1961), 1961, Dissolved),
+         Founded = ifelse((Name == "Demokrat Parti" & date > 1961), 2007, Founded),
+         Dissolved = ifelse((Name == "Demokrat Parti" & date > 1961), 2021, Dissolved),
+         Founded = ifelse((Name == "Adalet Partisi" & date <= 1961), 1946, Founded),
+         Dissolved = ifelse((Name == "Adalet Partisi" & date <= 1981), 1981, Dissolved),
+         Founded = ifelse((Name == "Adalet Partisi" & date > 1981), 2015, Founded),
+         Dissolved = ifelse((Name == "Adalet Partisi" & date > 1981), 2021, Dissolved),
+         Founded = ifelse((Parti == "HDP"), 2012, Founded), # for some reason didn't have this info for HDP
+         Dissolved = ifelse((Parti == "HDP"), 2021, Dissolved),
+         Founded = as.integer(Founded),
+         Dissolved = as.integer(Dissolved)) %>%
+  group_by(date) %>%
+   mutate(percentage = as.double(percentage)) %>%
+  arrange(desc(percentage)) %>%
+  slice(1:3) %>% # getting only the top three
+  ungroup() %>%
+  filter(! Parti == "Bağımsız") %>% #if there was an independent candidate in the top three, I am not listing them since I don't know how to decide on their political positions or ideologies. 
+  
+  # for some reason the political chronologies dataset did not have information for these parties below. so I searched for them on Wikipedia and manually updated the variables.
+  mutate( Name = ifelse(Parti == "Cumhuriyetçi Millet Partisi", "Cumhuriyetçi Millet Partisi", Name),
+         Leader = ifelse(Parti == "Cumhuriyetçi Millet Partisi", "Osman Bölükbaşı", Leader),
+         Founded = ifelse(Parti == "Cumhuriyetçi Millet Partisi", 1954, Founded),
+         Dissolved = ifelse(Parti == "Cumhuriyetçi Millet Partisi", 1958, Dissolved),
+         PoliticalPosition = ifelse(Parti == "Cumhuriyetçi Millet Partisi", 2, PoliticalPosition),
+         Ideology = ifelse(Parti == "Cumhuriyetçi Millet Partisi", "Turkish nationalism", Ideology),
+         Parti = ifelse(Parti == "Cumhuriyetçi Millet Partisi", "CMP", Parti),
+         
+         Name = ifelse(Parti == "Cumhuriyetçi Köylü Millet Partisi", "Cumhuriyetçi Köylü Millet Partisi", Name),
+         Leader = ifelse(Parti == "Cumhuriyetçi Köylü Millet Partisi", "Osman Bölükbaşı", Leader),
+         Founded = ifelse(Parti == "Cumhuriyetçi Köylü Millet Partisi", 1958, Founded),
+         Dissolved = ifelse(Parti == "Cumhuriyetçi Köylü Millet Partisi", 1969, Dissolved),
+         PoliticalPosition = ifelse(Parti == "Cumhuriyetçi Köylü Millet Partisi", 1, PoliticalPosition),
+         Ideology = ifelse(Parti == "Cumhuriyetçi Köylü Millet Partisi", "Turkish nationalism", Ideology),
+         Parti = ifelse(Parti == "Cumhuriyetçi Köylü Millet Partisi", "CKMP", Parti),
+         
+         Name = ifelse(Parti == "Yeni Türkiye Partisi", "Yeni Türkiye Partisi", Name),
+         Leader = ifelse(Parti == "Yeni Türkiye Partisi", "Ekrem Alican", Leader),
+         Founded = ifelse(Parti == "Yeni Türkiye Partisi", 1961, Founded),
+         Dissolved = ifelse(Parti == "Yeni Türkiye Partisi", 1973, Dissolved),
+         PoliticalPosition = ifelse(Parti == "Yeni Türkiye Partisi", 3, PoliticalPosition),
+         Ideology = ifelse(Parti == "Yeni Türkiye Partisi", "Liberal conservatism", Ideology),
+         Parti = ifelse(Parti == "Yeni Türkiye Partisi", "YTP", Parti),
+       
+         Name = ifelse(Parti == "Millet Partisi", "Millet Partisi", Name),
+         Leader = ifelse(Parti == "Millet Partisi", "Fevzi Çakmak", Leader),
+         Founded = ifelse(Parti == "Millet Partisi", 1948, Founded),
+         Dissolved = ifelse(Parti == "Millet Partisi", 1954, Dissolved),
+         PoliticalPosition = ifelse(Parti == "Millet Partisi", 2, PoliticalPosition),
+         Ideology = ifelse(Parti == "Millet Partisi", "Turkish nationalism, conservatism", Ideology),
+         Parti = ifelse(Parti == "Millet Partisi", "MP", Parti),
+         
+         Name = ifelse(Parti == "Demokratik Parti", "Demokratik Parti", Name),
+         Leader = ifelse(Parti == "Demokratik Parti", "Ferruh Bozbeyli", Leader),
+         Founded = ifelse(Parti == "Demokratik Parti", 1970, Founded),
+         Dissolved = ifelse(Parti == "Demokratik Parti", 1980, Dissolved),
+         PoliticalPosition = ifelse(Parti == "Demokratik Parti", 3, PoliticalPosition),
+         Ideology = ifelse(Parti == "Demokratik Parti", "Conservatism, Liberalism, Conservative liberalism, Liberal conservatism", Ideology),
+         Parti = ifelse(Parti == "Demokratik Parti", "Demokratik", Parti),
+         
+         Name = ifelse(Parti == "Halkçı Parti", "Halkçı Parti", Name),
+         Leader = ifelse(Parti == "Halkçı Parti", "Necdet Calp", Leader),
+         Founded = ifelse(Parti == "Halkçı Parti", 1983, Founded),
+         Dissolved = ifelse(Parti == "Halkçı Parti", 1985, Dissolved),
+         PoliticalPosition = ifelse(Parti == "Halkçı Parti", 5, PoliticalPosition),
+         Ideology = ifelse(Parti == "Halkçı Parti", "Social democracy, Secularism", Ideology),
+         Parti = ifelse(Parti == "Halkçı Parti", "HP", Parti),
+       
+         Name = ifelse(Parti == "MDP", "Milliyetçi Demokrasi Partisi", Name),
+         Leader = ifelse(Parti == "MDP", "Turgut Sunalp", Leader),
+         Founded = ifelse(Parti == "MDP", 1983, Founded),
+         Dissolved = ifelse(Parti == "MDP", 1986, Dissolved),
+         PoliticalPosition = ifelse(Parti == "MDP", 3, PoliticalPosition),
+         Ideology = ifelse(Parti == "MDP", "Nationalism", Ideology),
+
+         Name = ifelse(Parti == "Demokrat Parti", "Demokrat Parti", Name),
+         Leader = ifelse(Parti == "Demokrat Parti", "Celal Bayar", Leader),
+         Founded = ifelse(Parti == "Demokrat Parti", 1946, Founded),
+         Dissolved = ifelse(Parti == "Demokrat Parti", 1961, Dissolved),
+         PoliticalPosition = ifelse(Parti == "Demokrat Parti", 3, PoliticalPosition),
+         Ideology = ifelse(Parti == "Demokrat Parti", "Liberal conservatism, Economic liberalism, Right-wing populism, Ataturkism", Ideology),
+         Parti = ifelse(Parti == "Demokrat Parti", "DP", Parti),
+
+         Name = ifelse(Parti == "Adalet Partisi", "Adalet Partisi", Name),
+         Leader = ifelse(Parti == "Adalet Partisi", "Süleyman Demirel", Leader),
+         Founded = ifelse(Parti == "Adalet Partisi", 1961, Founded),
+         Dissolved = ifelse(Parti == "Adalet Partisi", 1981, Dissolved),
+         PoliticalPosition = ifelse(Parti == "Adalet Partisi", 3, PoliticalPosition),
+         Ideology = ifelse(Parti == "Adalet Partisi", "Liberal conservatism, Economic liberalism, Right-wing populism", Ideology),
+         Parti = ifelse(Parti == "Adalet Partisi", "AP", Parti))
+
+#making a vector for the colors that I will be using
+colors <- c("#980100", "#ff0100", "#e99a99", "#8e7cc3", "#4285f4", "#0c5394", "#093762")
+
+# graphing the years of activity for the parties that were in the top three in at least one election
+top_three %>%
+  ggplot() + 
+  geom_point(aes(x = Founded, y = PoliticalPosition, color = Parti), position = position_dodge(0.9)) + # I am adding these dodges so that they are not overlapping
+  geom_point(aes(x = Dissolved, y = PoliticalPosition, color = Parti), position = position_dodge(0.9)) + 
+  geom_linerangeh(aes(xmin = Founded, xmax = Dissolved, y = PoliticalPosition, color = Parti), position = position_dodge(0.9)) + 
+  geom_text(aes(x = (Founded+Dissolved)/2 , y = PoliticalPosition, label = Parti, group = Parti), position = position_dodge(0.9)) + 
+  geom_hline(yintercept = 1.5, linetype = "dashed") +
+  geom_hline(yintercept = 2.4, linetype = "dashed") +
+  geom_hline(yintercept = 3.7, linetype = "dashed") +
+  geom_hline(yintercept = 4.3, linetype = "dashed") +
+  geom_hline(yintercept = 5.7, linetype = "dashed") +
+  geom_hline(yintercept = 6.3, linetype = "dashed") +
+  guides(color = "none") + 
+  scale_y_discrete(labels = c("Far-right", "Right", "Center-right", "Center", "Center-left", "Left")) + 
+  labs(x = "Year", y = "Political Position", title = "Years of Activity for Turkey's Political Parties", subtitle = "Parties That Were in Top Three in At Least One Election") + 
+  center + center_sub + 
+  theme(axis.text.y = element_text(color = colors))
+
+# For this visualization I am not listing the names of the parties (could optionally be done with a simple geom_text, but it's not what I am looking for here)
+# What I am trying to do is to see the percentage of votes and political positions of the parties that were in the top three in at least one election
+top_three %>%
+  mutate(PoliticalPosition = case_when(
+    PoliticalPosition == "1" ~ "Far-right", 
+    PoliticalPosition == "2" ~ "Right",
+    PoliticalPosition == "3" ~ "Center-right",
+    PoliticalPosition == "4" ~ "Center",
+    PoliticalPosition == "5" ~ "Center-left",
+    PoliticalPosition == "6" ~ "Left",
+    PoliticalPosition == "7" ~"Far-left")) %>%
+  ggplot() + 
+  geom_point(aes(y = percentage, x = date, color = PoliticalPosition)) +
+  geom_line(aes(y = percentage, x = date, group = Parti, color = PoliticalPosition))  + 
+  scale_color_manual(values = c("Far-right" = "#980100", "Right" = "#ff0100", "Center-right" = "#e99a99", "Center" = "#8e7cc3", "Center-left" = "#4285f4", "Left" = "#0c5394", "Far-left" = "#093762")) + 
+  labs(x = "Year", y = "Percentage of Votes", title = "Percentage of Votes and Political Positions of Parties", subtitle = "That Were in Top Three in At Least One Election", color = "Political Position") + 
+  center + center_sub
+
+# making a graph of number of parties founded by their political position
+political_chronology %>%
+  group_by(PoliticalPosition) %>%
+  summarize(count = n()) %>%
+  ggplot() + geom_col(aes(x = count, y = PoliticalPosition), fill = colors) + 
+  scale_y_discrete(labels = c("Far-right", "Right", "Center-right", "Center", "Center-left", "Left", "Far-left")) +
+  geom_text(aes(x = count, y = PoliticalPosition, label = count), color = colors, hjust = -0.5) + 
+  labs (x = "Number of Parties Founded", y = "Political Positions", title = "Number of Political Parties Founded in Turkey by Political Positions") + 
+  center
+```
+
+- Word Clouds:
+
+```{r word-clouds}
+# here I have all the party names
+party_names <- political_chronology %>%
+   full_join(general_election_results, by = "Parti") %>%
+  dplyr::select(Name, Parti) %>%
+  pivot_longer(Name:Parti) %>%
+  dplyr::select(value) %>%
+  distinct() %>%
+  mutate(value = ifelse(value == "İYİ", "İyi Parti", value),
+         value = ifelse(value == "VATAN", "Vatan Partisi", value),
+         value = ifelse(value == "MDP", "Milliyetçi Demokrasi Partisi", value),
+         value = ifelse(value == "TBP", "Türkiye Birlik Partisi", value)) %>%
+  filter(nchar(value) > 8) %>%
+  filter(! value %in% c("YÜCEDİRİ-P", "HALKINKURTULUŞU", "MİLLET1948", "Demokrat Parti 1964"))
+
+# finding the most commonly used words in party names
+data_frame(text = party_names) %>% 
+    mutate_all(as.character) %>%
+    unnest_tokens(word, text) %>%    # split words
+    count(word, sort = TRUE) 
+
+# making a wordcloud of the most commonly used words in party names (not shown in the presentation) 
+wordcloud(party_names$value, min.freq = 3, max.words = 100, random.order = FALSE, colors=brewer.pal(8, "Dark2"))
+
+# here I have all the ideologies
+ideologies <- political_chronology %>%
+   mutate(Ideology = strsplit(as.character(Ideology), ",")) %>%
+    unnest(Ideology) %>%
+  dplyr::select(Ideology)
+
+# finding the most commonly used words in ideologies
+data_frame(text = ideologies) %>% 
+  mutate_all(as.character) %>%
+    unnest_tokens(word, text) %>%    # split words
+    count(word, sort = TRUE) 
+
+# finding the most commonly used words in the ideologies of the parties that were in the top three in at least one election
+top_three_ideologies <- top_three %>%
+    mutate(Ideology = strsplit(as.character(Ideology), ",")) %>%
+    unnest(Ideology) %>%
+  dplyr::select(Ideology)
+
+# creating a wordcloud of the most commonly used words in ideologies
+wordcloud(ideologies$Ideology, min.freq = 2, max.words = 100, random.order = FALSE, colors=brewer.pal(8, "Dark2"))
+
+# creating a wordcloud of the most commonly used words in ideologies of the parties that were in the top three in at least one election
+wordcloud(top_three_ideologies$Ideology, min.freq = 2, max.words = 100, random.order = FALSE, colors=brewer.pal(8, "Dark2"))
+```
+
+- Linear Discriminant Analysis: 
+
+```{r lda}
+lda_data <- log_data %>%
+  dplyr::select(-c("Timestamp", "gender", "age", "region", "education", "party_factor")) %>%
+  mutate(party = case_when(
+    party == "AKP" ~ 1,
+    party == "CHP" ~ 2,
+    party == "MHP" ~ 3,
+    party == "IYI PARTI" ~ 4,
+    party == "HDP" ~ 5,
+    party == "DIĞER" ~ 6))
+
+set.seed(123)
+ind <- sample(2, nrow(lda_data),
+              replace = TRUE,
+              prob = c(0.6, 0.4))
+
+training <- lda_data[ind==1,]
+testing <- lda_data[ind==2,]
+
+linear <- lda(party~., training)
+linear
+```
+
+Based on the training dataset, 
+12.1% belongs to group 1 (AKP), 
+26.9% belongs to group 2 (CHP), 
+3.7% belongs to group 3 (MHP),
+33.1% belongs to group 4 (IYI), 
+1.5% belongs to group 5 (HDP), 
+22.6% belongs to group 6 (OTHER).
+
+```{r lda-accuracy}
+p1 <- predict(linear, training)$class
+tab <- table(Predicted = p1, Actual = training$party)
+tab
+
+sum(diag(tab))/sum(tab)
+```
+
+According to https://www.statstest.com/linear-discriminant-analysis/, if your dependent variable is binary, then you should use Simple Logistic Regression,  Linear Discriminant Analysis is used when each of the predictor variables is continuous, and if your independent variables are all continuous, then you can use Multinomial Logistic Regression. That clarifies a lot for me, because I kind of experimented with all, but didn't know which one was proper to use. I think since my predictor variables are binary and my dependent variable is categorical (indeed made binary through voting/not voting approach and having different models for each party), using simple logistic regression looks like a better idea to me. I think the 43.7% accuracy rate of LDA is not good, and it could be because my predictor values are not continuous. 
